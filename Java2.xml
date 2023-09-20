@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" revision="1.0.0" language="Java" filename="Java2.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+ <package>package <name><name>org</name><operator>.</operator><name>apache</name><operator>.</operator><name>spark</name><operator>.</operator><name>serializer</name></name>;</package>
+
+ <import>import <name><name>java</name><operator>.</operator><name>io</name><operator>.</operator><name>IOException</name></name>;</import>
+ <import>import <name><name>java</name><operator>.</operator><name>io</name><operator>.</operator><name>InputStream</name></name>;</import>
+ <import>import <name><name>java</name><operator>.</operator><name>io</name><operator>.</operator><name>OutputStream</name></name>;</import>
+ <import>import <name><name>java</name><operator>.</operator><name>nio</name><operator>.</operator><name>ByteBuffer</name></name>;</import>
+ 
+ <import>import <name><name>scala</name><operator>.</operator><name>reflect</name><operator>.</operator><name>ClassTag</name></name>;</import>
+ 
+ <import>import <name><name>org</name><operator>.</operator><name>apache</name><operator>.</operator><name>spark</name><operator>.</operator><name>annotation</name><operator>.</operator><name>Private</name></name>;</import>
+ <import>import <name><name>org</name><operator>.</operator><name>apache</name><operator>.</operator><name>spark</name><operator>.</operator><name>unsafe</name><operator>.</operator><name>Platform</name></name>;</import>
+ 
+ <comment type="block" format="javadoc">/**
+  * Unfortunately, we need a serializer instance in order to construct a DiskBlockObjectWriter.
+  * Our shuffle write path doesn't actually use this serializer (since we end up calling the
+  * `write() OutputStream methods), but DiskBlockObjectWriter still calls some methods on it. To work
+  * around this, we pass a dummy no-op serializer.
+  */</comment>
+ <class><annotation>@<name>Private</name></annotation>
+ <specifier>public</specifier> <specifier>final</specifier> class <name>DummySerializerInstance</name> <super_list><extends>extends <super><name>SerializerInstance</name></super></extends></super_list> <block>{
+ 
+   <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>DummySerializerInstance</name></type> <name>INSTANCE</name> <init>= <expr><operator>new</operator> <call><name>DummySerializerInstance</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+ 
+   <constructor><specifier>private</specifier> <name>DummySerializerInstance</name><parameter_list>()</parameter_list> <block>{<block_content> </block_content>}</block></constructor>
+ 
+   <function><annotation>@<name>Override</name></annotation>
+   <type><specifier>public</specifier> <name>SerializationStream</name></type> <name>serializeStream</name><parameter_list>(<parameter><decl><type><specifier>final</specifier> <name>OutputStream</name></type> <name>s</name></decl></parameter>)</parameter_list> <block>{<block_content>
+     <return>return <expr><operator>new</operator> <class><super><name>SerializationStream</name></super><argument_list>()</argument_list> <block>{
+       <function><annotation>@<name>Override</name></annotation>
+       <type><specifier>public</specifier> <name>void</name></type> <name>flush</name><parameter_list>()</parameter_list> <block>{<block_content>
+         <comment type="line">// Need to implement this because DiskObjectWriter uses it to flush the compression stream</comment>
+         <try>try <block>{<block_content>
+           <expr_stmt><expr><call><name><name>s</name><operator>.</operator><name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+         </block_content>}</block> <catch>catch <parameter_list>(<parameter><decl><type><name>IOException</name></type> <name>e</name></decl></parameter>)</parameter_list> <block>{<block_content>
+           <expr_stmt><expr><call><name><name>Platform</name><operator>.</operator><name>throwException</name></name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+         </block_content>}</block></catch></try>
+       </block_content>}</block></function>
+ 
+       <function><annotation>@<name>Override</name></annotation>
+       <type><specifier>public</specifier> <parameter_list type="generic">&lt;<parameter><name>T</name></parameter>&gt;</parameter_list> <name>SerializationStream</name></type> <name>writeObject</name><parameter_list>(<parameter><decl><type><name>T</name></type> <name>t</name></decl></parameter>, <parameter><decl><type><name><name>ClassTag</name><argument_list type="generic">&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>ev1</name></decl></parameter>)</parameter_list> <block>{<block_content>
+         <throw>throw <expr><operator>new</operator> <call><name>UnsupportedOperationException</name><argument_list>()</argument_list></call></expr>;</throw>
+       </block_content>}</block></function>
+ 
+       <function><annotation>@<name>Override</name></annotation>
+       <type><specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <block>{<block_content>
+         <comment type="line">// Need to implement this because DiskObjectWriter uses it to close the compression stream</comment>
+         <try>try <block>{<block_content>
+           <expr_stmt><expr><call><name><name>s</name><operator>.</operator><name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+         </block_content>}</block> <catch>catch <parameter_list>(<parameter><decl><type><name>IOException</name></type> <name>e</name></decl></parameter>)</parameter_list> <block>{<block_content>
+           <expr_stmt><expr><call><name><name>Platform</name><operator>.</operator><name>throwException</name></name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+         </block_content>}</block></catch></try>
+       </block_content>}</block></function>
+     }</block></class></expr>;</return>
+   </block_content>}</block></function>
+ 
+   <function><annotation>@<name>Override</name></annotation>
+   <type><specifier>public</specifier> <parameter_list type="generic">&lt;<parameter><name>T</name></parameter>&gt;</parameter_list> <name>ByteBuffer</name></type> <name>serialize</name><parameter_list>(<parameter><decl><type><name>T</name></type> <name>t</name></decl></parameter>, <parameter><decl><type><name><name>ClassTag</name><argument_list type="generic">&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>ev1</name></decl></parameter>)</parameter_list> <block>{<block_content>
+     <throw>throw <expr><operator>new</operator> <call><name>UnsupportedOperationException</name><argument_list>()</argument_list></call></expr>;</throw>
+   </block_content>}</block></function>
+ 
+   <function><annotation>@<name>Override</name></annotation>
+   <type><specifier>public</specifier> <name>DeserializationStream</name></type> <name>deserializeStream</name><parameter_list>(<parameter><decl><type><name>InputStream</name></type> <name>s</name></decl></parameter>)</parameter_list> <block>{<block_content>
+     <throw>throw <expr><operator>new</operator> <call><name>UnsupportedOperationException</name><argument_list>()</argument_list></call></expr>;</throw>
+   </block_content>}</block></function>
+ 
+   <function><annotation>@<name>Override</name></annotation>
+   <type><specifier>public</specifier> <parameter_list type="generic">&lt;<parameter><name>T</name></parameter>&gt;</parameter_list> <name>T</name></type> <name>deserialize</name><parameter_list>(<parameter><decl><type><name>ByteBuffer</name></type> <name>bytes</name></decl></parameter>, <parameter><decl><type><name>ClassLoader</name></type> <name>loader</name></decl></parameter>, <parameter><decl><type><name><name>ClassTag</name><argument_list type="generic">&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>ev1</name></decl></parameter>)</parameter_list> <block>{<block_content>
+     <throw>throw <expr><operator>new</operator> <call><name>UnsupportedOperationException</name><argument_list>()</argument_list></call></expr>;</throw>
+   </block_content>}</block></function>
+ 
+   <function><annotation>@<name>Override</name></annotation>
+   <type><specifier>public</specifier> <parameter_list type="generic">&lt;<parameter><name>T</name></parameter>&gt;</parameter_list> <name>T</name></type> <name>deserialize</name><parameter_list>(<parameter><decl><type><name>ByteBuffer</name></type> <name>bytes</name></decl></parameter>, <parameter><decl><type><name><name>ClassTag</name><argument_list type="generic">&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>ev1</name></decl></parameter>)</parameter_list> <block>{<block_content>
+     <throw>throw <expr><operator>new</operator> <call><name>UnsupportedOperationException</name><argument_list>()</argument_list></call></expr>;</throw>
+   </block_content>}</block></function>
+ }</block></class></unit>

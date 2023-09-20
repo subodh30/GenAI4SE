@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" revision="1.0.0" language="Java" filename="Java1.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+ <package>package <name><name>org</name><operator>.</operator><name>apache</name><operator>.</operator><name>spark</name><operator>.</operator><name>memory</name></name>;</package>
+
+ <import>import <name><name>java</name><operator>.</operator><name>io</name><operator>.</operator><name>IOException</name></name>;</import>
+ 
+ <import>import <name><name>org</name><operator>.</operator><name>apache</name><operator>.</operator><name>spark</name><operator>.</operator><name>errors</name><operator>.</operator><name>SparkCoreErrors</name></name>;</import>
+ <import>import <name><name>org</name><operator>.</operator><name>apache</name><operator>.</operator><name>spark</name><operator>.</operator><name>unsafe</name><operator>.</operator><name>array</name><operator>.</operator><name>LongArray</name></name>;</import>
+ <import>import <name><name>org</name><operator>.</operator><name>apache</name><operator>.</operator><name>spark</name><operator>.</operator><name>unsafe</name><operator>.</operator><name>memory</name><operator>.</operator><name>MemoryBlock</name></name>;</import>
+ 
+ <comment type="block" format="javadoc">/**
+  * A memory consumer of {@link TaskMemoryManager} that supports spilling.
+  *
+  * Note: this only supports allocation / spilling of Tungsten memory.
+  */</comment>
+ <class><specifier>public</specifier> <specifier>abstract</specifier> class <name>MemoryConsumer</name> <block>{
+ 
+   <decl_stmt><decl><type><specifier>protected</specifier> <specifier>final</specifier> <name>TaskMemoryManager</name></type> <name>taskMemoryManager</name></decl>;</decl_stmt>
+   <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>long</name></type> <name>pageSize</name></decl>;</decl_stmt>
+   <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>MemoryMode</name></type> <name>mode</name></decl>;</decl_stmt>
+   <decl_stmt><decl><type><specifier>protected</specifier> <name>long</name></type> <name>used</name></decl>;</decl_stmt>
+ 
+   <constructor><specifier>protected</specifier> <name>MemoryConsumer</name><parameter_list>(<parameter><decl><type><name>TaskMemoryManager</name></type> <name>taskMemoryManager</name></decl></parameter>, <parameter><decl><type><name>long</name></type> <name>pageSize</name></decl></parameter>, <parameter><decl><type><name>MemoryMode</name></type> <name>mode</name></decl></parameter>)</parameter_list> <block>{<block_content>
+     <expr_stmt><expr><name><name>this</name><operator>.</operator><name>taskMemoryManager</name></name> <operator>=</operator> <name>taskMemoryManager</name></expr>;</expr_stmt>
+     <expr_stmt><expr><name><name>this</name><operator>.</operator><name>pageSize</name></name> <operator>=</operator> <name>pageSize</name></expr>;</expr_stmt>
+     <expr_stmt><expr><name><name>this</name><operator>.</operator><name>mode</name></name> <operator>=</operator> <name>mode</name></expr>;</expr_stmt>
+   </block_content>}</block></constructor>
+ 
+   <constructor><specifier>protected</specifier> <name>MemoryConsumer</name><parameter_list>(<parameter><decl><type><name>TaskMemoryManager</name></type> <name>taskMemoryManager</name></decl></parameter>, <parameter><decl><type><name>MemoryMode</name></type> <name>mode</name></decl></parameter>)</parameter_list> <block>{<block_content>
+     <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>taskMemoryManager</name></expr></argument>, <argument><expr><call><name><name>taskMemoryManager</name><operator>.</operator><name>pageSizeBytes</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>mode</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+   </block_content>}</block></constructor>
+ 
+   <comment type="block" format="javadoc">/**
+    * Returns the memory mode, {@link MemoryMode#ON_HEAP} or {@link MemoryMode#OFF_HEAP}.
+    */</comment>
+   <function><type><specifier>public</specifier> <name>MemoryMode</name></type> <name>getMode</name><parameter_list>()</parameter_list> <block>{<block_content>
+     <return>return <expr><name>mode</name></expr>;</return>
+   </block_content>}</block></function>
+ 
+   <comment type="block" format="javadoc">/**
+    * Returns the size of used memory in bytes.
+    */</comment>
+   <function><type><specifier>public</specifier> <name>long</name></type> <name>getUsed</name><parameter_list>()</parameter_list> <block>{<block_content>
+     <return>return <expr><name>used</name></expr>;</return>
+   </block_content>}</block></function>
+ 
+   <comment type="block" format="javadoc">/**
+    * Force spill during building.
+    */</comment>
+   <function><type><specifier>public</specifier> <name>void</name></type> <name>spill</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{<block_content>
+     <expr_stmt><expr><call><name>spill</name><argument_list>(<argument><expr><name><name>Long</name><operator>.</operator><name>MAX_VALUE</name></name></expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+   </block_content>}</block></function>
+ 
+   <comment type="block" format="javadoc">/**
+    * Spill some data to disk to release memory, which will be called by TaskMemoryManager
+    * when there is not enough memory for the task.
+    *
+    * This should be implemented by subclass.
+    *
+    * Note: In order to avoid possible deadlock, should not call acquireMemory() from spill().
+    *
+    * Note: today, this only frees Tungsten-managed pages.
+    *
+    * @param size the amount of memory should be released
+    * @param trigger the MemoryConsumer that trigger this spilling
+    * @return the amount of released memory in bytes
+    */</comment>
+   <function_decl><type><specifier>public</specifier> <specifier>abstract</specifier> <name>long</name></type> <name>spill</name><parameter_list>(<parameter><decl><type><name>long</name></type> <name>size</name></decl></parameter>, <parameter><decl><type><name>MemoryConsumer</name></type> <name>trigger</name></decl></parameter>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws>;</function_decl>
+ 
+   <comment type="block" format="javadoc">/**
+    * Allocates a LongArray of `size`. Note that this method may throw `SparkOutOfMemoryError`
+    * if Spark doesn't have enough memory for this allocation, or throw `TooLargePageException`
+    * if this `LongArray` is too large to fit in a single page. The caller side should take care of
+    * these two exceptions, or make sure the `size` is small enough that won't trigger exceptions.
+    *
+    * @throws SparkOutOfMemoryError
+    * @throws TooLargePageException
+    */</comment>
+   <function><type><specifier>public</specifier> <name>LongArray</name></type> <name>allocateArray</name><parameter_list>(<parameter><decl><type><name>long</name></type> <name>size</name></decl></parameter>)</parameter_list> <block>{<block_content>
+     <decl_stmt><decl><type><name>long</name></type> <name>required</name> <init>= <expr><name>size</name> <operator>*</operator> <literal type="number">8L</literal></expr></init></decl>;</decl_stmt>
+     <decl_stmt><decl><type><name>MemoryBlock</name></type> <name>page</name> <init>= <expr><call><name><name>taskMemoryManager</name><operator>.</operator><name>allocatePage</name></name><argument_list>(<argument><expr><name>required</name></expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+     <if_stmt><if>if <condition>(<expr><name>page</name> <operator>==</operator> <literal type="null">null</literal> <operator>||</operator> <call><name><name>page</name><operator>.</operator><name>size</name></name><argument_list>()</argument_list></call> <operator>&lt;</operator> <name>required</name></expr>)</condition> <block>{<block_content>
+       <expr_stmt><expr><call><name>throwOom</name><argument_list>(<argument><expr><name>page</name></expr></argument>, <argument><expr><name>required</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+     </block_content>}</block></if></if_stmt>
+     <expr_stmt><expr><name>used</name> <operator>+=</operator> <name>required</name></expr>;</expr_stmt>
+     <return>return <expr><operator>new</operator> <call><name>LongArray</name><argument_list>(<argument><expr><name>page</name></expr></argument>)</argument_list></call></expr>;</return>
+   </block_content>}</block></function>
+ 
+   <comment type="block" format="javadoc">/**
+    * Frees a LongArray.
+    */</comment>
+   <function><type><specifier>public</specifier> <name>void</name></type> <name>freeArray</name><parameter_list>(<parameter><decl><type><name>LongArray</name></type> <name>array</name></decl></parameter>)</parameter_list> <block>{<block_content>
+     <expr_stmt><expr><call><name>freePage</name><argument_list>(<argument><expr><call><name><name>array</name><operator>.</operator><name>memoryBlock</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+   </block_content>}</block></function>
+ 
+   <comment type="block" format="javadoc">/**
+    * Allocate a memory block with at least `required` bytes.
+    *
+    * @throws SparkOutOfMemoryError
+    */</comment>
+   <function><type><specifier>protected</specifier> <name>MemoryBlock</name></type> <name>allocatePage</name><parameter_list>(<parameter><decl><type><name>long</name></type> <name>required</name></decl></parameter>)</parameter_list> <block>{<block_content>
+     <decl_stmt><decl><type><name>MemoryBlock</name></type> <name>page</name> <init>= <expr><call><name><name>taskMemoryManager</name><operator>.</operator><name>allocatePage</name></name><argument_list>(<argument><expr><call><name><name>Math</name><operator>.</operator><name>max</name></name><argument_list>(<argument><expr><name>pageSize</name></expr></argument>, <argument><expr><name>required</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+     <if_stmt><if>if <condition>(<expr><name>page</name> <operator>==</operator> <literal type="null">null</literal> <operator>||</operator> <call><name><name>page</name><operator>.</operator><name>size</name></name><argument_list>()</argument_list></call> <operator>&lt;</operator> <name>required</name></expr>)</condition> <block>{<block_content>
+       <expr_stmt><expr><call><name>throwOom</name><argument_list>(<argument><expr><name>page</name></expr></argument>, <argument><expr><name>required</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+     </block_content>}</block></if></if_stmt>
+     <expr_stmt><expr><name>used</name> <operator>+=</operator> <call><name><name>page</name><operator>.</operator><name>size</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+     <return>return <expr><name>page</name></expr>;</return>
+   </block_content>}</block></function>
+ 
+   <comment type="block" format="javadoc">/**
+    * Free a memory block.
+    */</comment>
+   <function><type><specifier>protected</specifier> <name>void</name></type> <name>freePage</name><parameter_list>(<parameter><decl><type><name>MemoryBlock</name></type> <name>page</name></decl></parameter>)</parameter_list> <block>{<block_content>
+     <expr_stmt><expr><name>used</name> <operator>-=</operator> <call><name><name>page</name><operator>.</operator><name>size</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+     <expr_stmt><expr><call><name><name>taskMemoryManager</name><operator>.</operator><name>freePage</name></name><argument_list>(<argument><expr><name>page</name></expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+   </block_content>}</block></function>
+ 
+   <comment type="block" format="javadoc">/**
+    * Allocates memory of `size`.
+    */</comment>
+   <function><type><specifier>public</specifier> <name>long</name></type> <name>acquireMemory</name><parameter_list>(<parameter><decl><type><name>long</name></type> <name>size</name></decl></parameter>)</parameter_list> <block>{<block_content>
+     <decl_stmt><decl><type><name>long</name></type> <name>granted</name> <init>= <expr><call><name><name>taskMemoryManager</name><operator>.</operator><name>acquireExecutionMemory</name></name><argument_list>(<argument><expr><name>size</name></expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+     <expr_stmt><expr><name>used</name> <operator>+=</operator> <name>granted</name></expr>;</expr_stmt>
+     <return>return <expr><name>granted</name></expr>;</return>
+   </block_content>}</block></function>
+ 
+   <comment type="block" format="javadoc">/**
+    * Release N bytes of memory.
+    */</comment>
+   <function><type><specifier>public</specifier> <name>void</name></type> <name>freeMemory</name><parameter_list>(<parameter><decl><type><name>long</name></type> <name>size</name></decl></parameter>)</parameter_list> <block>{<block_content>
+     <expr_stmt><expr><call><name><name>taskMemoryManager</name><operator>.</operator><name>releaseExecutionMemory</name></name><argument_list>(<argument><expr><name>size</name></expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+     <expr_stmt><expr><name>used</name> <operator>-=</operator> <name>size</name></expr>;</expr_stmt>
+   </block_content>}</block></function>
+ 
+   <function><type><specifier>private</specifier> <name>void</name></type> <name>throwOom</name><parameter_list>(<parameter><decl><type><specifier>final</specifier> <name>MemoryBlock</name></type> <name>page</name></decl></parameter>, <parameter><decl><type><specifier>final</specifier> <name>long</name></type> <name>required</name></decl></parameter>)</parameter_list> <block>{<block_content>
+     <decl_stmt><decl><type><name>long</name></type> <name>got</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+     <if_stmt><if>if <condition>(<expr><name>page</name> <operator>!=</operator> <literal type="null">null</literal></expr>)</condition> <block>{<block_content>
+       <expr_stmt><expr><name>got</name> <operator>=</operator> <call><name><name>page</name><operator>.</operator><name>size</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+       <expr_stmt><expr><call><name><name>taskMemoryManager</name><operator>.</operator><name>freePage</name></name><argument_list>(<argument><expr><name>page</name></expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+     </block_content>}</block></if></if_stmt>
+     <expr_stmt><expr><call><name><name>taskMemoryManager</name><operator>.</operator><name>showMemoryUsage</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+     <throw>throw <expr><call><name><name>SparkCoreErrors</name><operator>.</operator><name>outOfMemoryError</name></name><argument_list>(<argument><expr><name>required</name></expr></argument>, <argument><expr><name>got</name></expr></argument>)</argument_list></call></expr>;</throw>
+   </block_content>}</block></function>
+ }</block></class></unit>
